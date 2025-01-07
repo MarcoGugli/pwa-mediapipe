@@ -1,4 +1,10 @@
-import { Component, OnInit } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  ElementRef,
+  OnInit,
+  ViewChild,
+} from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import {
   DrawingUtils,
@@ -9,12 +15,13 @@ import {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet],
+  imports: [],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss',
 })
-export class AppComponent implements OnInit {
-  demosSection = document.getElementById('demos');
+export class AppComponent implements OnInit, AfterViewInit {
+  @ViewChild('demos', { static: false }) demos!: ElementRef<HTMLElement>;
+  demosSection: HTMLElement | undefined = undefined;
   imageContainers = document.getElementsByClassName('detectOnClick');
   poseLandmarker: PoseLandmarker | undefined = undefined;
   runningMode: 'IMAGE' | 'VIDEO' = 'IMAGE';
@@ -23,27 +30,38 @@ export class AppComponent implements OnInit {
   videoHeight = '360px';
   videoWidth = '480px';
   lastVideoTime = -1;
+  video: HTMLVideoElement | undefined = undefined;
+  canvasElement: HTMLCanvasElement | undefined = undefined;
+  canvasCtx: CanvasRenderingContext2D | undefined = undefined;
+  drawingUtils: DrawingUtils | undefined = undefined;
 
   ngOnInit(): void {
-    this.createPoseLandmarker;
-    this.addListener();
-    this.handleClick;
+    this.createPoseLandmarker();
     this.isWebcamSupported();
+  }
+  ngAfterViewInit(): void {
+    this.canvasElement = document.getElementById(
+      'output_canvas'
+    ) as HTMLCanvasElement;
+    this.canvasCtx = this.canvasElement.getContext('2d')!;
+    this.drawingUtils = new DrawingUtils(this.canvasCtx);
+    this.demosSection = document.getElementById('demos')!;
+    this.video = document.getElementById('webcam') as HTMLVideoElement;
   }
   // Before we can use PoseLandmarker class we must wait for it to finish
   // loading. Machine Learning models can be large and take a moment to
   // get everything needed to run.
   createPoseLandmarker = async () => {
     const vision = await FilesetResolver.forVisionTasks(
-      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm'
+      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm'
     );
     this.poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
       baseOptions: {
         modelAssetPath: `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task`,
         delegate: 'GPU',
       },
-      runningMode: this.runningMode,
-      numPoses: 2,
+      runningMode: 'VIDEO',
+      numPoses: 1,
     });
     this.demosSection!.classList.remove('invisible');
   };
@@ -58,7 +76,7 @@ export class AppComponent implements OnInit {
   // this class.
 
   // Now let's go through all of these and add a click event listener.
-  addListener() {
+  /* addListener() {
     for (let i = 0; i < this.imageContainers.length; i++) {
       // Add event listener to the child element whichis the img element.
       this.imageContainers[i].children[0].addEventListener(
@@ -66,7 +84,7 @@ export class AppComponent implements OnInit {
         this.handleClick
       );
     }
-  }
+  } */
 
   // When an image is clicked, let's detect it and display results!
   handleClick = async (event: any) => {
@@ -74,7 +92,7 @@ export class AppComponent implements OnInit {
       console.log('Wait for poseLandmarker to load before clicking!');
       return;
     }
-
+    console.log(event);
     if (this.runningMode === 'VIDEO') {
       this.runningMode = 'IMAGE';
       await this.poseLandmarker.setOptions({ runningMode: 'IMAGE' });
@@ -90,11 +108,22 @@ export class AppComponent implements OnInit {
     // different image data each time. The result is returned in a callback.
     this.poseLandmarker.detect(event.target, (result) => {
       const canvas = document.createElement('canvas');
-      canvas.setAttribute('class', 'canvas');
-      canvas.setAttribute('width', event.target.naturalWidth + 'px');
-      canvas.setAttribute('height', event.target.naturalHeight + 'px');
-      canvas.setAttribute('left', '0');
-      canvas.setAttribute('top', '0');
+      canvas.setAttribute('width', event.target.clientWidth + 'px');
+      canvas.setAttribute('height', event.target.clientHeight + 'px');
+      canvas.setAttribute(
+        'style',
+        'left: 0px;' +
+          'position: absolute;' +
+          'pointer-events: none;' +
+          'z-index: 1;' +
+          'top: 0px;' +
+          'width: ' +
+          event.target.width +
+          'px;' +
+          'height: ' +
+          event.target.height +
+          'px;'
+      );
 
       event.target.parentNode.appendChild(canvas);
       const canvasCtx = canvas.getContext('2d')!;
@@ -112,11 +141,6 @@ export class AppComponent implements OnInit {
 // Demo 2: Continuously grab image from webcam stream and detect it.
 ********************************************************************/
 
-  video = document.getElementById('webcam') as HTMLVideoElement;
-  canvasElement = document.getElementById('output_canvas') as HTMLCanvasElement;
-  canvasCtx = this.canvasElement.getContext('2d')!;
-  drawingUtils = new DrawingUtils(this.canvasCtx);
-
   // Check if webcam access is supported.
   hasGetUserMedia = () => !!navigator.mediaDevices?.getUserMedia;
 
@@ -125,7 +149,7 @@ export class AppComponent implements OnInit {
   isWebcamSupported() {
     if (this.hasGetUserMedia()) {
       const enableWebcamButton = document.getElementById('webcamButton')!;
-      enableWebcamButton.addEventListener('click', this.enableCam);
+      /* enableWebcamButton.addEventListener('click', this.enableCam); */
     } else {
       console.warn('getUserMedia() is not supported by your browser');
     }
@@ -153,43 +177,48 @@ export class AppComponent implements OnInit {
 
     // Activate the webcam stream.
     navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
-      this.video.srcObject = stream;
-      this.video.addEventListener('loadeddata', this.predictWebcam);
+      this.video!.srcObject = stream;
+      this.video!.addEventListener('loadeddata', this.predictWebcam);
     });
   }
 
   predictWebcam = async () => {
-    this.canvasElement.style.height = this.videoHeight;
-    this.video.style.height = this.videoHeight;
-    this.canvasElement.style.width = this.videoWidth;
-    this.video.style.width = this.videoWidth;
+    this.canvasElement!.style.height = this.videoHeight;
+    this.video!.style.height = this.videoHeight;
+    this.canvasElement!.style.width = this.videoWidth;
+    this.video!.style.width = this.videoWidth;
     // Now let's start detecting the stream.
     if (this.runningMode === 'IMAGE') {
       this.runningMode = 'VIDEO';
       await this.poseLandmarker!.setOptions({ runningMode: 'VIDEO' });
     }
     let startTimeMs = performance.now();
-    if (this.lastVideoTime !== this.video.currentTime) {
-      this.lastVideoTime = this.video.currentTime;
-      this.poseLandmarker!.detectForVideo(this.video, startTimeMs, (result) => {
-        this.canvasCtx.save();
-        this.canvasCtx.clearRect(
-          0,
-          0,
-          this.canvasElement.width,
-          this.canvasElement.height
-        );
-        for (const landmark of result.landmarks) {
-          this.drawingUtils.drawLandmarks(landmark, {
-            radius: (data) => DrawingUtils.lerp(data.from!.z, -0.15, 0.1, 5, 1),
-          });
-          this.drawingUtils.drawConnectors(
-            landmark,
-            PoseLandmarker.POSE_CONNECTIONS
+    if (this.lastVideoTime !== this.video!.currentTime) {
+      this.lastVideoTime = this.video!.currentTime;
+      this.poseLandmarker!.detectForVideo(
+        this.video!,
+        startTimeMs,
+        (result) => {
+          this.canvasCtx!.save();
+          this.canvasCtx!.clearRect(
+            0,
+            0,
+            this.canvasElement!.width,
+            this.canvasElement!.height
           );
+          for (const landmark of result.landmarks) {
+            this.drawingUtils!.drawLandmarks(landmark, {
+              radius: (data) =>
+                DrawingUtils.lerp(data.from!.z, -0.15, 0.1, 5, 1),
+            });
+            this.drawingUtils!.drawConnectors(
+              landmark,
+              PoseLandmarker.POSE_CONNECTIONS
+            );
+          }
+          this.canvasCtx!.restore();
         }
-        this.canvasCtx.restore();
-      });
+      );
     }
 
     // Call this function again to keep predicting when the browser is ready.

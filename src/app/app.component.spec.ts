@@ -14,17 +14,16 @@ describe('AppComponent', () => {
     expect(app).toBeTruthy();
   });
 
-  it(`should have the 'pwa-mediapipe' title`, () => {
+  it(`should have the 'prova' title`, () => {
     const fixture = TestBed.createComponent(AppComponent);
     const app = fixture.componentInstance;
+    expect(app.title).toEqual('prova');
   });
 
   it('should render title', () => {
     const fixture = TestBed.createComponent(AppComponent);
     fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain(
-      'Hello, pwa-mediapipe'
-    );
+    expect(compiled.querySelector('h1')?.textContent).toContain('Hello, prova');
   });
 });
